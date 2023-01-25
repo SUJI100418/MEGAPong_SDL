@@ -8,6 +8,8 @@ Game::Game()
 :mWindow(nullptr)
 ,mRenderer(nullptr)
 ,mIsRunning(true)
+,mTicksCount(0)
+,mPaddleDir(0)
 {
 
 }
@@ -57,6 +59,9 @@ bool Game::Initialize()
 	mBallPos.x = 1024.0f / 2.0f;
 	mBallPos.y = 768.0f / 2.0f;
 
+	mBallVel.x = -200.0f;
+	mBallVel.y = 235.0f;
+
 	return true;
 }
 
@@ -92,11 +97,77 @@ void Game::ProcessInput()
 	{
 		mIsRunning = false;
 	}
+
+	// 키보드 paddle
+	mPaddleDir = 0; // 정지
+	if (state[SDL_SCANCODE_W])
+		mPaddleDir -= 1;
+	if (state[SDL_SCANCODE_S])
+		mPaddleDir += 1;
 }
 
 
 void Game::UpdateGame()
 {
+	// 목표 프레임이 60FPS 이면, 1프레임당 목표 델타 시간은 16.6ms
+	// 만약, 프레임이 15ms 만에 끝나면 추가로 1.6ms 를 기다려야 한다.
+
+	// 마지막 프레임 이후 16ms 가 경과할 때까지 대기
+	while (!SDL_TICKS_PASSED(SDL_GetTicks(), mTicksCount + 16));  // 프레임간 16ms 가 경과함을 보장
+
+	// 델타 타임 계산 : 마지막  프레임 틱 값과 현제 프레임 틱값의 차
+	float deltaTime = (SDL_GetTicks() - mTicksCount) / 1000.0f;
+
+	if (deltaTime > 0.05f)
+		deltaTime = 0.05f;
+
+	mTicksCount = SDL_GetTicks();  // 초기화 이후 경과된 밀리초
+
+	// 델타 시간으로 게임 세계 오브젝트 갱신
+
+	// 1. 패들 이동
+	if (mPaddleDir != 0)
+	{
+		mPaddlePos.y += mPaddleDir * 300.0f * deltaTime;
+
+		if (mPaddlePos.y < (paddleH / 2.0f + thickness))
+			mPaddlePos.y = paddleH / 2.0f + thickness;
+
+		else if (mPaddlePos.y > (768.0f - paddleH / 2.0f - thickness))
+			mPaddlePos.y = 768.0f - paddleH / 2.0f - thickness;
+	}
+
+	// 2. 공 이동 -> ?????????
+	mBallPos.x += mBallVel.x * deltaTime;
+	mBallPos.y += mBallVel.y * deltaTime;
+
+	// 공 충돌함?
+	float diff = mPaddlePos.y - mBallPos.y;
+	diff = (diff > 0.0f) ? diff : -diff;
+
+	if (
+		diff <= paddleH / 2.0f &&
+		mBallPos.x <= 25.0f && mBallPos.x >= 20.0f &&
+		mBallVel.x < 0.0f)
+	{
+		mBallVel.x *= -1.0f;
+	}
+
+	// 공이 스크린 밖으로 나감
+	else if (mBallPos.x <= 0.0f)
+		mIsRunning = false;
+
+	else if (mBallPos.x >= (1024.0f - thickness) && mBallVel.x > 0.0f)
+		mBallVel.x *= -1.0f;
+
+	if (mBallPos.y <= thickness && mBallVel.y < 0.0f)
+		mBallVel.y *= -1;
+
+	else if (mBallPos.y >= (768 - thickness) &&
+		mBallVel.y > 0.0f)
+	{
+		mBallVel.y *= -1;
+	}
 
 }
 
